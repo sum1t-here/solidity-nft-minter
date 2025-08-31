@@ -13,13 +13,14 @@ import "@openzeppelin/contracts/utils/Strings.sol";
  * User can claim these NFTs using claim codes
  */
 contract Minter is ERC721, Ownable {
-    using Strings for uint256;
 
+    // Errors
     error Minter__ArrayLengthMismatch();
     error Minter__EmptyArray();
     error Minter__CodeAlreadyUsed();
     error Minter__InvalidCode();
     error Minter__AlreadyClaimed();
+    error Minter__AlreadyClaimedOnce();
 
     // mapping to track if a claim code has been used per event
     mapping(uint256 => mapping(string => bool)) public claimedCodes;
@@ -32,6 +33,9 @@ contract Minter is ERC721, Ownable {
 
     // mapping from eventId to tokenId
     mapping(uint256 => uint256) public tokenToEvent;
+
+    // mapping to check which wallet has claimed for each event
+    mapping(uint256 => mapping(address => bool)) hasClaimed;
 
     // track event Ids
     uint256 public currentEventId;
@@ -49,6 +53,12 @@ contract Minter is ERC721, Ownable {
      */
     constructor(string memory name, string memory symbol) ERC721(name, symbol) Ownable(msg.sender) {}
 
+    /**
+     * @dev Only the owner can call this function and batch mint nfts
+     * @param eventId The Id of the event for which the nft is to be minted
+     * @param codes The claim code associated with the NFT
+     * @param tokenURIs The URI associated with the NFT
+     */
     function batchMintWithCode(uint256 eventId, string[] memory codes, string[] memory tokenURIs) external onlyOwner {
         currentEventId = eventId;
 
@@ -84,8 +94,15 @@ contract Minter is ERC721, Ownable {
         emit BatchMinter(eventId, tokenIds, codes);
     }
 
+    /**
+     * @dev Users can claim only one nft per event
+     * @param eventId The ID of the event for which the NFT is being claimed
+     * @param code The claim code associated with the NFT
+     * @param recipient The address to receive the NFT
+     */
     function claim(uint256 eventId, string memory code, address recipient) external {
         if (!claimedCodes[eventId][code]) revert Minter__InvalidCode();
+        if (hasClaimed[eventId][recipient]) revert Minter__AlreadyClaimedOnce();
 
         uint256 tokenId = codeToTokenId[eventId][code];
 
@@ -94,21 +111,36 @@ contract Minter is ERC721, Ownable {
             revert Minter__AlreadyClaimed();
         }
 
+        // mark the wallet as claimed
+        hasClaimed[eventId][recipient] = true;
+
         _transfer(address(this), recipient, tokenId);
 
         emit NFTClaimed(eventId, tokenId, recipient, code);
     }
 
+    /**
+     * @dev Returns the URI associated with a given tokenId.
+     * @param tokenId The ID of the token whose URI is being queried.
+     */
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         _requireOwned(tokenId);
         return _tokenURIs[tokenId];
     }
 
+    /**
+     * @dev Sets a new URI for the specified tokenId.
+     * @param tokenId The ID of the token to update.
+     * @param newTokenURI The new URI to assign to the token.
+     */
     function setTokenURI(uint256 tokenId, string memory newTokenURI) external onlyOwner {
         _requireOwned(tokenId);
         _tokenURIs[tokenId] = newTokenURI;
     }
 
+    /**
+     * @dev Returns the current event ID.
+     */
     function nextEventId() external view returns (uint256) {
         return currentEventId;
     }

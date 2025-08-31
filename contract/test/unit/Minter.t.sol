@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {Test, console} from "forge-std/Test.sol";
-import {Minter} from "../src/Minter.sol";
+import {Minter} from "src/Minter.sol";
 
 contract MinterTest is Test {
     Minter public nft;
@@ -84,7 +84,7 @@ contract MinterTest is Test {
         nft.claim(eventId, "code-0", user);
 
         vm.prank(user);
-        vm.expectRevert(Minter.Minter__AlreadyClaimed.selector);
+        vm.expectRevert(Minter.Minter__AlreadyClaimedOnce.selector);
         nft.claim(eventId, "code-0", user);
     }
 
@@ -101,5 +101,55 @@ contract MinterTest is Test {
         nft.setTokenURI(0, "ipfs://QmNew");
 
         assertEq(nft.tokenURI(0), "ipfs://QmNew");
+    }
+
+    function testUserCannotClaimMoreThanOneInAnyEvent() public {
+        string[] memory codes = new string[](2);
+        codes[0] = "code-0";
+        codes[1] = "code-1";
+
+        string[] memory tokenURIs = new string[](2);
+        tokenURIs[0] = "ipfs://QmTest1";
+        tokenURIs[1] = "ipfs://QmTest2";
+
+        uint256 eventId = 1;
+
+        vm.prank(owner);
+        nft.batchMintWithCode(eventId, codes, tokenURIs);
+
+        vm.prank(user);
+        nft.claim(eventId, "code-0", user);
+
+        assertEq(nft.ownerOf(0), user);
+
+        vm.prank(user);
+        vm.expectRevert(Minter.Minter__AlreadyClaimedOnce.selector);
+        nft.claim(eventId, "code-1", user);
+    }
+
+    function testUserCanClaimFromMultipleEvents() public {
+        string[] memory codes1 = new string[](1);
+        codes1[0] = "code-0";
+        string[] memory tokenURIs1 = new string[](1);
+        tokenURIs1[0] = "ipfs://QmTest";
+        uint256 eventId1 = 1;
+        vm.prank(owner);
+        nft.batchMintWithCode(eventId1, codes1, tokenURIs1);
+        vm.prank(user);
+        nft.claim(eventId1, codes1[0], user);
+        assertEq(nft.ownerOf(0), user);
+        assertEq(nft.nextEventId(), 1);
+
+        string[] memory codes2 = new string[](1);
+        codes2[0] = "code-0";
+        string[] memory tokenURIs2 = new string[](1);
+        tokenURIs2[0] = "ipfs://QmTest";
+        uint256 eventId2 = 2;
+        vm.prank(owner);
+        nft.batchMintWithCode(eventId2, codes2, tokenURIs2);
+        vm.prank(user);
+        nft.claim(eventId2, codes2[0], user);
+        assertEq(nft.ownerOf(1), user);
+        assertEq(nft.nextEventId(), 2);
     }
 }
