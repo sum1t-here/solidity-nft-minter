@@ -105,4 +105,29 @@ contract MintNft is ERC1155, Ownable {
         TokenType storage token = tokenTypes[tokenId];
         return (token.name, token.symbol, token.eventURI, token.maxSupply, token.totalMinted);
     }
+
+    function getTotalEvents() public view returns (uint256) {
+        return tokenTypeCounter;
+    }
+
+    function getAllTokenTypes() public view returns (TokenType[] memory) {
+        TokenType[] memory tokens = new TokenType[](tokenTypeCounter);
+        for (uint256 i = 1; i <= tokenTypeCounter; i++) {
+            tokens[i - 1] = tokenTypes[i];
+        }
+        return tokens;
+    }
+
+    function getEventStats(uint256 tokenId)
+        public
+        view
+        returns (uint256 maxSupply, uint256 totalMinted, uint256 remaining)
+    {
+        TokenType storage token = tokenTypes[tokenId];
+        return (token.maxSupply, token.totalMinted, token.maxSupply - token.totalMinted);
+    }
+
+    function hasUserClaimed(uint256 tokenId, address user) public view returns (bool) {
+        return hasClaimed[tokenId][user];
+    }
 }
